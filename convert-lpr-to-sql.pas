@@ -8,7 +8,7 @@ uses
 	SysUtils;
 
 const
-	FILENAME =			'NS00DC011-Sec-20151117-235800-baPT5QgX.lpr';
+	FILENAME =			'testfile.lpr';
 
 	
 function PositionOfXthChar(checkString: string; checkChar: char; checkCount: integer): integer;
