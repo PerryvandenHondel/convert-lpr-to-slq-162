@@ -5,7 +5,8 @@ program ConvertLprToSql;
 {$H+}			// Large string support
 
 uses
-	SysUtils;
+	SysUtils,
+	USupportLibrary;
 
 const
 	FILENAME =			'testfile.lpr';
@@ -38,22 +39,57 @@ end;
 procedure ProcessSingleFile(path: string);
 var
 	f: TextFile;
+	fileSql: TextFile;
 	line: string;
 	positionOfFifthSepertator: integer;
+	partFixed: string;
+	partVariable: string;
+	pathSql: string;
+	partFixedStrings: TStringArray;
+	query: string;
 begin
-	Assign(f, path);
 	
+	pathSql := path + '.sql';
+	
+	if FileExists(pathSql) then
+		DeleteFile(pathSql);
+	
+	Assign(fileSql, pathSql);
+	ReWrite(fileSql);
+	
+	Assign(f, path);
 	{I+}
 	Reset(f);
 	repeat
 		ReadLn(f, line);
 		
 		positionOfFifthSepertator := PositionOfXthChar(line, '|', 5);
-		WriteLn(LeftStr(line, positionOfFifthSepertator - 1));
+		partFixed := LeftStr(line, positionOfFifthSepertator - 1);
+		partVariable := RightStr(line, Length(line) - positionOfFifthSepertator);
+		
+		//WriteLn(partFixed);
+		//WriteLn(partVariable);
+		//WriteLn;
+		
+		partFixedStrings := SplitString(partFixed, '|');
+		
+		query := 'INSERT INTO lprs ';
+		query := query + 'SET ';
+		query := query + 'TimeGenerated=' + EncloseSingleQuote(partFixedStrings[0]) + ',';
+		query := query + 'EventLog=' + EncloseSingleQuote(partFixedStrings[1]) + ',';
+		query := query + 'ComputerName=' + EncloseSingleQuote(partFixedStrings[2]) + ',';
+		query := query + 'EventID=' + partFixedStrings[3] + ',';
+		query := query + 'EventType=' + partFixedStrings[4] + ',';
+		query := query + 'Strings=' + EncloseSingleQuote(partVariable) + ';';
+		
+		WriteLn(fileSql, query);
+		
 		
 		//WriteLn(line);
 	until Eof(f);
 	Close(f);
+	
+	Close(fileSql);
 end;
 
 
