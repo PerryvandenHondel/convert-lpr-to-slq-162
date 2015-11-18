@@ -4,13 +4,41 @@ program ConvertLprToSql;
 {$MODE OBJFPC}
 {$H+}			// Large string support
 
+
 uses
+	DateUtils,
 	SysUtils,
 	USupportLibrary;
 
-const
-	FILENAME =			'testfile.lpr';
-
+	
+var
+	uniqueCodeCounter: integer;
+	uniqueCodeDateTime: TDateTime;
+	x: integer;
+	
+	
+function GetUniqueCode: string;
+//
+//	1234567890123456789012
+//	20151118-193137-004993
+//
+var
+	currentDateTime: TDateTime;
+begin
+	currentDateTime := Now();
+	if DateTimeToStr(currentDateTime) = DateTimeToStr(uniqueCodeDateTime) then
+		Inc(uniqueCodeCounter)
+	else
+	begin
+		uniqueCodeCounter := 0;
+		uniqueCodeDateTime := Now();
+	end;
+	
+	//WriteLn(DateTimeToStr(uniqueCodeDateTime), ':', uniqueCodeCounter);
+	//WriteLn(FormatDateTime('yyyymmdd-hhnnss', uniqueCodeDateTime), ':', uniqueCodeCounter);
+	GetUniqueCode := FormatDateTime('yyyymmdd-hhnnss', currentDateTime) + '-' + NumberAlign(uniqueCodeCounter,6);
+end;
+	
 	
 function PositionOfXthChar(checkString: string; checkChar: char; checkCount: integer): integer;
 var
@@ -36,9 +64,9 @@ begin
 end;
 
 
-procedure ProcessSingleFile(path: string);
+procedure ProcessSingleFile(pathLpr: string);
 var
-	f: TextFile;
+	fileLpr: TextFile;
 	fileSql: TextFile;
 	line: string;
 	positionOfFifthSepertator: integer;
@@ -47,53 +75,62 @@ var
 	pathSql: string;
 	partFixedStrings: TStringArray;
 	query: string;
+	lineCounter: integer;
 begin
 	
-	pathSql := path + '.sql';
+	pathSql := pathLpr + '.sql';
 	
 	if FileExists(pathSql) then
 		DeleteFile(pathSql);
 	
+	WriteLn('Converting ', pathLpr, ' to ', pathSql, ', please wait...');
+	
 	Assign(fileSql, pathSql);
 	ReWrite(fileSql);
 	
-	Assign(f, path);
+	Assign(fileLpr, pathLpr);
 	{I+}
-	Reset(f);
-	repeat
-		ReadLn(f, line);
-		
-		positionOfFifthSepertator := PositionOfXthChar(line, '|', 5);
-		partFixed := LeftStr(line, positionOfFifthSepertator - 1);
-		partVariable := RightStr(line, Length(line) - positionOfFifthSepertator);
-		
-		//WriteLn(partFixed);
-		//WriteLn(partVariable);
-		//WriteLn;
-		
-		partFixedStrings := SplitString(partFixed, '|');
-		
-		query := 'INSERT INTO lprs ';
-		query := query + 'SET ';
-		query := query + 'TimeGenerated=' + EncloseSingleQuote(partFixedStrings[0]) + ',';
-		query := query + 'EventLog=' + EncloseSingleQuote(partFixedStrings[1]) + ',';
-		query := query + 'ComputerName=' + EncloseSingleQuote(partFixedStrings[2]) + ',';
-		query := query + 'EventID=' + partFixedStrings[3] + ',';
-		query := query + 'EventType=' + partFixedStrings[4] + ',';
-		query := query + 'Strings=' + EncloseSingleQuote(partVariable) + ';';
-		
-		WriteLn(fileSql, query);
-		
-		
-		//WriteLn(line);
-	until Eof(f);
-	Close(f);
+	Reset(fileLpr);
 	
+	lineCounter := 0;
+	repeat
+		ReadLn(fileLpr, line);
+		Inc(lineCounter);
+		if lineCounter > 1 then
+		begin
+			positionOfFifthSepertator := PositionOfXthChar(line, '|', 5);
+			partFixed := LeftStr(line, positionOfFifthSepertator - 1);
+			partVariable := RightStr(line, Length(line) - positionOfFifthSepertator);
+			partFixedStrings := SplitString(partFixed, '|');
+		
+			query := 'INSERT INTO lprs ';
+			query := query + 'SET ';
+			query := query + 'RecordId=' + EncloseSingleQuote(GetUniqueCode) + ',';
+			query := query + 'TimeGenerated=' + EncloseSingleQuote(partFixedStrings[0]) + ',';
+			query := query + 'EventLog=' + EncloseSingleQuote(partFixedStrings[1]) + ',';
+			query := query + 'ComputerName=' + EncloseSingleQuote(partFixedStrings[2]) + ',';
+			query := query + 'EventID=' + partFixedStrings[3] + ',';
+			query := query + 'EventType=' + partFixedStrings[4] + ',';
+			query := query + 'Strings=' + EncloseSingleQuote(partVariable) + ';';
+		
+			WriteLn(fileSql, query);
+		end;
+	until Eof(fileLpr);
+	Close(fileLpr);
 	Close(fileSql);
+	WriteLn('Converted ', lineCounter, ' lines.');
 end;
 
 
 begin
-	//WriteLn(PositionOfXthChar('2015-11-17 23:58:00|Security|NS00DC011.prod.ns.nl|4625|16|S-1-0-0|-|-|0x0|S-1-0-0|SW025V478$|DEVSP01|0xc000006d|%%2313|0xc0000064|3|NtLmSsp |NTLM|SW025V478|-|-|0|0x0|-|10.158.66.14|56577', '|', 5));
-	ProcessSingleFile(FILENAME);
+	uniqueCodeCounter := 0;
+	uniqueCodeDateTime := Now();
+
+	//for x := 1 to 5000 do
+	//	WriteLn(GetUniqueCode());
+	
+	if ParamCount = 1 then
+		ProcessSingleFile(ParamStr(1))
+	else
+		WriteLn('Usage: ', ParamStr(0), ' <lprfile>');
 end.
